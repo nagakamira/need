@@ -1,0 +1,67 @@
+#!/bin/sh
+#
+
+CWD=$(pwd)
+TMP=$CWD/tmp/$NAME-$VERSION/
+OUT=$HOME/packages
+PKG=$TMP/package-$NAME-$VERSION/
+
+NAME=glibc
+VERSION=2.25
+ARCH=x86_64
+
+rm -rf $PKG
+mkdir -p $PKG $OUT
+
+cd $TMP
+rm -rf $NAME-$VERSION
+
+echo "Downloading source..."
+wget http://ftp.gnu.org/gnu/$NAME/$NAME-$VERSION.tar.xz
+echo "Preparing..."
+tar xvfJ $NAME-$VERSION.tar.xz
+rm -rf $NAME-$VERSION.tar.xz
+cd $NAME-$VERSION
+
+echo "Compiling..."
+
+	mkdir -v build
+	cd       build
+	../configure --prefix=/usr                      \
+                     --libexecdir=/usr/lib              \
+                     --with-headers=/usr/include        \
+                     --enable-kernel=2.6.32             \
+                     --enable-obsolete-rpc              \
+                     --enable-stack-protector=strong    \
+                     --enable-add-ons                   \
+                     --enable-bind-now                  \
+                     --enable-stackguard-randomization  \
+                     --enable-lock-elision              \
+                     --enable-static-nss                \
+                     --without-cvs                      \
+                     --without-gd                       \
+                     --without-selinux                  \
+                     --disable-profile                  \
+                     --disable-werror                   \
+                     --build=$ARCH-agnus-linux
+	make
+	mkdir $PKG/etc
+	touch $PKG/etc/ld.so.conf
+	make install_root=$PKG install
+	cp -v ../nscd/nscd.conf $PKG/etc/nscd.conf
+	mkdir -pv $PKG/var/cache/nscd
+	install -m644 ../posix/gai.conf $PKG/etc/gai.conf
+#	install -v -Dm644 ../nscd/nscd.tmpfiles $PKG/usr/lib/tmpfiles.d/nscd.conf
+#	install -v -Dm644 ../nscd/nscd.service $PKG/lib/systemd/system/nscd.service
+	rm -v $PKG/usr/sbin/zdump
+	mkdir -pv $PKG/usr/lib/locale
+	make install_root=$PKG localedata/install-locales
+	rm -rf $PKG/etc/ld.so.conf
+	install -m 0644 $CWD/{hosts,resolv.conf,nsswitch.conf,host.conf,ld.so.conf} $PKG/etc
+	mkdir -pv $PKG/etc/ld.so.conf.d
+	rm -rf $PKG/usr/bin/tzselect
+
+echo "Generating package..."
+
+cd $PKG
+makepkg ${OUT}/$NAME-$VERSION-$ARCH.tlz
